@@ -16,4 +16,4 @@
 `go build photorepo.go`
 
 ## 執行
-`photorepo.exe -d <image directory>`
+`photorepo.exe -r <server root directory> -d <file stored directory>`
