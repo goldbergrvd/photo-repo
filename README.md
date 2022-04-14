@@ -8,8 +8,8 @@
 ## API
 | Method | url | parameter | resposne |
 | ------ | ------ | ------ | ------ |
-| GET | /imgs | | [...names] |
-| GET | /imgs/:name | | img file |
+| GET | /images | | [...names] |
+| GET | /image/:name | | img file |
 | POST | /upload | multipart/form-data | [...names] |
 
 ## 建置
