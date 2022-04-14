@@ -8,11 +8,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
-	// "syscall"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,21 +27,29 @@ var VIDEO_EXT = []string{".mp4"}
 
 const FILENAME_LEN int = len("20060102150405000")
 
+var SAMSUNG_FILE_RULE *regexp.Regexp
+
 func init() {
 	flag.StringVar(&ROOT_DIR, "r", ".", "Server root directory")
 	flag.StringVar(&ROOT_STORE, "d", "./files", "Files stored root directory")
 	flag.Parse()
+
+	var err error
+	SAMSUNG_FILE_RULE, err = regexp.Compile("\\d{8}_\\d{6}\\.[jpg|jpeg|png|JPG|JPEG|PNG|mp4|MP4]")
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func main() {
-	createAllDir(path.Join(ROOT_STORE, IMAGE_DIR))
-	createAllDir(path.Join(ROOT_STORE, VIDEO_DIR))
-
 	err := os.Chdir(ROOT_DIR)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	createAllDir(path.Join(ROOT_STORE, IMAGE_DIR))
+	createAllDir(path.Join(ROOT_STORE, VIDEO_DIR))
 
 	startServer()
 }
@@ -110,8 +119,8 @@ func startServer() {
 }
 
 func createAllDir(dirs string) {
-	// mask := syscall.Umask(0)
-	// defer syscall.Umask(mask)
+	mask := syscall.Umask(0)
+	defer syscall.Umask(mask)
 
 	err := os.MkdirAll(dirs, os.ModePerm)
 	if err != nil {
@@ -129,14 +138,22 @@ func getFilePath(srcFileName string) (fullPath string, filePath string) {
 
 	for {
 		now := time.Now()
-		datetimePath := now.Format("2006/01/02/20060102150405") + now.Format("05.000")[3:] + ext
+		var datetimePath string
+		if SAMSUNG_FILE_RULE.MatchString(srcFileName) {
+			year := srcFileName[0:4]
+			month := srcFileName[4:6]
+			day := srcFileName[6:8]
+			time := srcFileName[9:15]
+			datetimePath = fmt.Sprintf("%s/%s/%s/%s%s%s%s", year, month, day, year, month, day, time) + now.Format("05.000")[3:] + ext
+		} else {
+			datetimePath = now.Format("2006/01/02/20060102150405") + now.Format("05.000")[3:] + ext
+		}
 		filePath = datetimePath[len("2006/01/02/"):]
 		fullPath = path.Join(ROOT_STORE, typeDir, datetimePath)
 
 		if _, err := os.Stat(fullPath); errors.Is(err, os.ErrNotExist) {
 			return
 		}
-		fmt.Println(fullPath, "已存在")
 	}
 }
 
