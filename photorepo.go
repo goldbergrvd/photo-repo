@@ -68,20 +68,14 @@ func startServer() {
 	})
 
 	router.GET("/image/:name", func(c *gin.Context) {
-		if len(c.Param("name")) < FILENAME_LEN {
-			c.String(http.StatusBadRequest, "Name length at least 17.")
+		filePath, err := getFilePath(c.Param("name"))
+
+		if err != nil {
+			c.String(http.StatusBadRequest, err.Error())
 			return
 		}
-		filename := c.Param("name")[0:FILENAME_LEN]
-		ext := filepath.Ext(c.Param("name"))
 
-		if contains(IMAGE_EXT, ext) {
-			year := filename[0:4]
-			month := filename[4:6]
-			day := filename[6:8]
-			filePath := path.Join(ROOT_STORE, IMAGE_DIR, year, month, day, filename) + ext
-			c.File(filePath)
-		}
+		c.File(filePath)
 	})
 
 	router.GET("/images", func(c *gin.Context) {
@@ -108,7 +102,7 @@ func startServer() {
 
 		result := make([]string, 0)
 		for _, file := range files {
-			fullPath, filePath := getFilePath(file.Filename)
+			fullPath, filePath := createFilePath(file.Filename)
 			createAllDir(filepath.Dir(fullPath))
 			c.SaveUploadedFile(file, fullPath)
 			result = append(result, filePath)
@@ -116,6 +110,26 @@ func startServer() {
 		sort.Slice(result, func(i, j int) bool {
 			return result[i][0:FILENAME_LEN] > result[j][0:FILENAME_LEN]
 		})
+		c.JSON(http.StatusOK, result)
+	})
+
+	router.DELETE("delete", func(c *gin.Context) {
+		var names []string = make([]string, 0)
+		var result map[string]bool = make(map[string]bool)
+
+		if err := c.ShouldBind(&names); err != nil {
+			c.String(http.StatusBadRequest, err.Error())
+		}
+
+		for _, name := range names {
+			filePath, err := getFilePath(name)
+
+			if err == nil {
+				err = os.Remove(filePath)
+			}
+			result[name] = err == nil
+		}
+
 		c.JSON(http.StatusOK, result)
 	})
 
@@ -132,7 +146,7 @@ func createAllDir(dirs string) {
 	}
 }
 
-func getFilePath(srcFileName string) (fullPath string, filePath string) {
+func createFilePath(srcFileName string) (fullPath string, filePath string) {
 	ext := filepath.Ext(srcFileName)
 	typeDir := IMAGE_DIR
 
@@ -159,6 +173,26 @@ func getFilePath(srcFileName string) (fullPath string, filePath string) {
 			return
 		}
 	}
+}
+
+func getFilePath(name string) (filePath string, err error) {
+	if len(name) < FILENAME_LEN {
+		err = errors.New("Name length at least 17.")
+		return
+	}
+	filename := name[0:FILENAME_LEN]
+	ext := filepath.Ext(name)
+
+	if contains(IMAGE_EXT, ext) {
+		year := filename[0:4]
+		month := filename[4:6]
+		day := filename[6:8]
+		filePath = path.Join(ROOT_STORE, IMAGE_DIR, year, month, day, filename) + ext
+		return
+	}
+
+	err = fmt.Errorf("File type [%s] is not allowable", ext)
+	return
 }
 
 func getAllFile(root string) (result []string) {

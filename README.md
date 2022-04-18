@@ -11,6 +11,7 @@
 | GET | /images | | [...names] |
 | GET | /image/:name | | img file |
 | POST | /upload | multipart/form-data | [...names] |
+| DELETE | /delete | [...names] | { "name": isDeleted } |
 
 ## 建置
 `go build photorepo.go`
