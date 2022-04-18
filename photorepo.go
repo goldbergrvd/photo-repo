@@ -15,6 +15,8 @@ import (
 
 	"syscall"
 
+	"photo-repo/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,6 +58,8 @@ func main() {
 
 func startServer() {
 	router := gin.Default()
+
+	router.Use(middleware.Cors())
 
 	router.Static("/static", "./static")
 
