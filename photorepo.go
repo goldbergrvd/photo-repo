@@ -20,10 +20,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type DirType = string
+
 var ROOT_DIR string
 var ROOT_STORE string
-var IMAGE_DIR string = "images"
-var VIDEO_DIR string = "videos"
+var IMAGE_DIR DirType = "images"
+var VIDEO_DIR DirType = "videos"
 var IMAGE_EXT = []string{".jpg", ".jpeg", ".png"}
 var VIDEO_EXT = []string{".mp4"}
 
@@ -67,25 +69,11 @@ func startServer() {
 		c.File("index.html")
 	})
 
-	router.GET("/image/:name", func(c *gin.Context) {
-		filePath, err := getFilePath(c.Param("name"))
+	router.GET("/image/:name", fileHandlerFunc)
+	router.GET("video/:name", fileHandlerFunc)
 
-		if err != nil {
-			c.String(http.StatusBadRequest, err.Error())
-			return
-		}
-
-		c.File(filePath)
-	})
-
-	router.GET("/images", func(c *gin.Context) {
-		result := getAllFile(filepath.Join(ROOT_STORE, IMAGE_DIR))
-		sort.Slice(result, func(i, j int) bool {
-			return result[i][0:FILENAME_LEN] > result[j][0:FILENAME_LEN]
-		})
-
-		c.JSON(http.StatusOK, result)
-	})
+	router.GET("/images", filesHandler(IMAGE_DIR))
+	router.GET("/videos", filesHandler(VIDEO_DIR))
 
 	router.POST("/upload", func(c *gin.Context) {
 		form, _ := c.MultipartForm()
@@ -136,6 +124,28 @@ func startServer() {
 	router.Run()
 }
 
+func fileHandlerFunc(c *gin.Context) {
+	filePath, err := getFilePath(c.Param("name"))
+
+	if err != nil {
+		c.String(http.StatusBadRequest, err.Error())
+		return
+	}
+
+	c.File(filePath)
+}
+
+func filesHandler(dirType DirType) func(*gin.Context) {
+	return func(c *gin.Context) {
+		result := getAllFile(dirType)
+		sort.Slice(result, func(i, j int) bool {
+			return result[i][0:FILENAME_LEN] > result[j][0:FILENAME_LEN]
+		})
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
 func createAllDir(dirs string) {
 	mask := syscall.Umask(0)
 	defer syscall.Umask(mask)
@@ -183,11 +193,17 @@ func getFilePath(name string) (filePath string, err error) {
 	filename := name[0:FILENAME_LEN]
 	ext := filepath.Ext(name)
 
+	year := filename[0:4]
+	month := filename[4:6]
+	day := filename[6:8]
+
 	if contains(IMAGE_EXT, ext) {
-		year := filename[0:4]
-		month := filename[4:6]
-		day := filename[6:8]
 		filePath = path.Join(ROOT_STORE, IMAGE_DIR, year, month, day, filename) + ext
+		return
+	}
+
+	if contains(VIDEO_EXT, ext) {
+		filePath = path.Join(ROOT_STORE, VIDEO_DIR, year, month, day, filename) + ext
 		return
 	}
 
@@ -195,7 +211,8 @@ func getFilePath(name string) (filePath string, err error) {
 	return
 }
 
-func getAllFile(root string) (result []string) {
+func getAllFile(dirType DirType) (result []string) {
+	root := filepath.Join(ROOT_STORE, dirType)
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err

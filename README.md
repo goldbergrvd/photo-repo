@@ -10,6 +10,8 @@
 | ------ | ------ | ------ | ------ |
 | GET | /images | | [...names] |
 | GET | /image/:name | | img file |
+| GET | /videos | | [...names] |
+| GET | /video/:name | | video file |
 | POST | /upload | multipart/form-data | [...names] |
 | DELETE | /delete | [...names] | { "name": isDeleted } |
 
