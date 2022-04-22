@@ -26,7 +26,7 @@ var ROOT_STORE string
 var IMAGE_DIR DirType = "images"
 var VIDEO_DIR DirType = "videos"
 var IMAGE_EXT = []string{".jpg", ".jpeg", ".png"}
-var VIDEO_EXT = []string{".mp4"}
+var VIDEO_EXT = []string{".mp4", ".mov"}
 
 const FILE_QUERY_AMOUNT = 50
 const FILENAME_LEN int = len("20060102150405000")
@@ -255,10 +255,10 @@ func getAllFile(dirType DirType) (result []string) {
 
 func checkFile(fileName string) (err error) {
 	ext := filepath.Ext(fileName)
-	if contains(IMAGE_EXT, strings.ToLower(ext)) {
+	if contains(IMAGE_EXT, ext) {
 		return
 	}
-	if contains(VIDEO_EXT, strings.ToLower(ext)) {
+	if contains(VIDEO_EXT, ext) {
 		return
 	}
 	err = errors.New(fmt.Sprintf("File type [%s] incorrect, only accept image and video.", ext))
@@ -267,7 +267,7 @@ func checkFile(fileName string) (err error) {
 
 func contains(s []string, e string) bool {
 	for _, a := range s {
-		if a == e {
+		if a == strings.ToLower(e) {
 			return true
 		}
 	}

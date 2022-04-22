@@ -8,9 +8,9 @@
 ## API
 | Method | url | parameter | resposne |
 | ------ | ------ | ------ | ------ |
-| GET | /images | | [...names] |
+| GET | /images | fromName | [...names] |
 | GET | /image/:name | | img file |
-| GET | /videos | | [...names] |
+| GET | /videos | fromName | [...names] |
 | GET | /video/:name | | video file |
 | POST | /upload | multipart/form-data | [...names] |
 | DELETE | /delete | [...names] | { "name": isDeleted } |
