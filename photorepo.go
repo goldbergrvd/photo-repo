@@ -14,8 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"syscall"
-
 	"photo-repo/middleware"
 
 	"github.com/gin-gonic/gin"
