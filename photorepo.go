@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"syscall"
@@ -29,6 +30,7 @@ var VIDEO_DIR DirType = "videos"
 var IMAGE_EXT = []string{".jpg", ".jpeg", ".png"}
 var VIDEO_EXT = []string{".mp4"}
 
+const FILE_QUERY_AMOUNT = 50
 const FILENAME_LEN int = len("20060102150405000")
 
 var SAMSUNG_FILE_RULE *regexp.Regexp
@@ -70,7 +72,7 @@ func startServer() {
 	})
 
 	router.GET("/image/:name", fileHandlerFunc)
-	router.GET("video/:name", fileHandlerFunc)
+	router.GET("/video/:name", fileHandlerFunc)
 
 	router.GET("/images", filesHandler(IMAGE_DIR))
 	router.GET("/videos", filesHandler(VIDEO_DIR))
@@ -101,7 +103,7 @@ func startServer() {
 		c.JSON(http.StatusOK, result)
 	})
 
-	router.DELETE("delete", func(c *gin.Context) {
+	router.DELETE("/delete", func(c *gin.Context) {
 		var names []string = make([]string, 0)
 		var result map[string]bool = make(map[string]bool)
 
@@ -138,6 +140,31 @@ func fileHandlerFunc(c *gin.Context) {
 func filesHandler(dirType DirType) func(*gin.Context) {
 	return func(c *gin.Context) {
 		result := getAllFile(dirType)
+		endIndex := len(result)
+		fromIndex := endIndex - FILE_QUERY_AMOUNT
+
+		fromName := c.Query("fromName")
+
+		if len(fromName) > 0 {
+			if len(strings.TrimSuffix(fromName, filepath.Ext(fromName))) != FILENAME_LEN {
+				c.String(http.StatusBadRequest, "Filename length is 17 bit.")
+				return
+			}
+			if err := checkFile(fromName); err != nil {
+				c.String(http.StatusBadRequest, err.Error())
+				return
+			}
+			endIndex = sort.SearchStrings(result, fromName)
+			fromIndex = endIndex - FILE_QUERY_AMOUNT
+		}
+
+		if fromIndex < 0 {
+			fromIndex = 0
+		}
+
+		result = result[fromIndex:endIndex]
+
+		// reverse
 		sort.Slice(result, func(i, j int) bool {
 			return result[i][0:FILENAME_LEN] > result[j][0:FILENAME_LEN]
 		})
@@ -236,7 +263,7 @@ func checkFile(fileName string) (err error) {
 	if contains(VIDEO_EXT, strings.ToLower(ext)) {
 		return
 	}
-	err = errors.New(fmt.Sprintf("Upload file type [%s] incorrect, only accept image and video.", ext))
+	err = errors.New(fmt.Sprintf("File type [%s] incorrect, only accept image and video.", ext))
 	return
 }
 
