@@ -10,6 +10,7 @@
 | ------ | ------ | ------ | ------ |
 | GET | /images | fromName | [...names] |
 | GET | /image/:name | | img file |
+| GET | /image-xs/:name | | compressed img file |
 | GET | /videos | fromName | [...names] |
 | GET | /video/:name | | video file |
 | POST | /upload | multipart/form-data | [...names] |
