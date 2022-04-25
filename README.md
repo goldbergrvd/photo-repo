@@ -21,3 +21,6 @@
 
 ## 執行
 `photorepo.exe -r <server root directory> -d <file stored directory>`
+
+## TODO
+ - 圖片壓縮至100KB以下

@@ -62,6 +62,7 @@ func main() {
 	}
 
 	createAllDir(path.Join(ROOT_STORE, IMAGE_DIR))
+	createAllDir(path.Join(ROOT_STORE, IMAGE_XS_DIR))
 	createAllDir(path.Join(ROOT_STORE, VIDEO_DIR))
 
 	startServer()
@@ -338,23 +339,21 @@ func compressFile(file *multipart.FileHeader, filename string) (err error) {
 	}
 
 	x, err := exif.Decode(srcForExif)
-	if err != nil {
-		return err
-	}
-
-	orientation, err := x.Get(exif.Orientation)
 	if err == nil {
-		fmt.Printf("exif orientation flag: %s\n", orientation.String())
-		switch orientation.String() {
-		case "7", "8":
-			img = imaging.Rotate90(img)
-		case "3", "4":
-			img = imaging.Rotate180(img)
-		case "5", "6":
-			img = imaging.Rotate270(img)
+		orientation, err := x.Get(exif.Orientation)
+		if err == nil {
+			fmt.Printf("exif orientation flag: %s\n", orientation.String())
+			switch orientation.String() {
+			case "7", "8":
+				img = imaging.Rotate90(img)
+			case "3", "4":
+				img = imaging.Rotate180(img)
+			case "5", "6":
+				img = imaging.Rotate270(img)
+			}
+		} else {
+			fmt.Println(err)
 		}
-	} else {
-		fmt.Println(err)
 	}
 
 	buf := bytes.Buffer{}
