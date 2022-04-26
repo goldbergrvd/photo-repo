@@ -79,6 +79,22 @@ func startServer() {
 		c.File("index.html")
 	})
 
+	router.GET("/favicon.ico", func(c *gin.Context) {
+		c.File("favicon.ico")
+	})
+
+	router.GET("/logo192.jpeg", func(c *gin.Context) {
+		c.File("logo192.jpeg")
+	})
+
+	router.GET("/logo512.jpeg", func(c *gin.Context) {
+		c.File("logo512.jpeg")
+	})
+
+	router.GET("/manifest.json", func(c *gin.Context) {
+		c.File("manifest.json")
+	})
+
 	router.GET("/image/:name", fileHandler(IMAGE_DIR))
 	router.GET("/image-xs/:name", fileHandler(IMAGE_XS_DIR))
 	router.GET("/video/:name", fileHandler(VIDEO_DIR))
