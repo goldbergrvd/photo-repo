@@ -8,6 +8,7 @@
 ## API
 | Method | url | parameter | resposne |
 | ------ | ------ | ------ | ------ |
+| GET | /static/* | | static file |
 | GET | /images | fromName | [...names] |
 | GET | /image/:name | | img file |
 | GET | /image-xs/:name | | compressed img file |
