@@ -22,6 +22,7 @@ import (
 
 	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
+	"github.com/nfnt/resize"
 	"github.com/rwcarlsen/goexif/exif"
 )
 
@@ -371,6 +372,8 @@ func compressFile(file *multipart.FileHeader, filename string) (err error) {
 			fmt.Println(err)
 		}
 	}
+
+	img = resize.Resize(500, 0, img, resize.Lanczos3)
 
 	buf := bytes.Buffer{}
 	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: COMPRESS_QUALITY})
