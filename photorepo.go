@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -36,7 +37,7 @@ var VIDEO_DIR DirType = "videos"
 var IMAGE_EXT = []string{".jpg", ".jpeg", ".png"}
 var VIDEO_EXT = []string{".mp4", ".mov"}
 
-const FILE_QUERY_AMOUNT = 50
+const DEFAULT_QUERY_AMOUNT = 50
 const FILENAME_LEN int = len("20060102150405000")
 
 const COMPRESS_QUALITY = 20
@@ -229,9 +230,14 @@ func fileHandler(dirType DirType) func(*gin.Context) {
 
 func filesHandler(dirType DirType) func(*gin.Context) {
 	return func(c *gin.Context) {
+		queryAmount, err := strconv.Atoi(c.Query("amount"))
+		if err != nil || queryAmount == 0 {
+			queryAmount = DEFAULT_QUERY_AMOUNT
+		}
+
 		result := getAllFile(dirType)
 		endIndex := len(result)
-		fromIndex := endIndex - FILE_QUERY_AMOUNT
+		fromIndex := endIndex - queryAmount
 
 		fromName := c.Query("fromName")
 
@@ -245,7 +251,7 @@ func filesHandler(dirType DirType) func(*gin.Context) {
 				return
 			}
 			endIndex = sort.SearchStrings(result, fromName)
-			fromIndex = endIndex - FILE_QUERY_AMOUNT
+			fromIndex = endIndex - queryAmount
 		}
 
 		if fromIndex < 0 {
