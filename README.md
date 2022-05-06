@@ -6,8 +6,8 @@
  - 建立相簿
 
 ## API
-| Method | url | parameter | resposne | comment
-| ------ | ------ | ------ | ------ | |
+| Method | url | parameter | resposne | comment |
+| ------ | ------ | ------ | ------ | ------ |
 | GET | /static/* | | static file | |
 | GET | /images | query: ?fromName=name&amount=50 | [...names] | amount參數決定回傳數量，預設50 |
 | GET | /image/:name | | img file | |
