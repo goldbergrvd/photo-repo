@@ -43,6 +43,21 @@ const COMPRESS_QUALITY = 20
 
 var SAMSUNG_FILE_RULE *regexp.Regexp
 
+type uploadResult struct {
+	SuccessResults []string `json:"successResults"`
+	Errors         []string `json:"errorFiles"`
+}
+
+func (ur *uploadResult) sort() {
+	sort.Slice(ur.SuccessResults, func(i, j int) bool {
+		return ur.SuccessResults[i][0:FILENAME_LEN] > ur.SuccessResults[j][0:FILENAME_LEN]
+	})
+}
+
+func newUploadResult() uploadResult {
+	return uploadResult{make([]string, 0), make([]string, 0)}
+}
+
 func init() {
 	flag.StringVar(&ROOT_DIR, "r", ".", "Server root directory")
 	flag.StringVar(&ROOT_STORE, "d", "./files", "Files stored root directory")
@@ -62,9 +77,23 @@ func main() {
 		return
 	}
 
-	createAllDir(path.Join(ROOT_STORE, IMAGE_DIR))
-	createAllDir(path.Join(ROOT_STORE, IMAGE_XS_DIR))
-	createAllDir(path.Join(ROOT_STORE, VIDEO_DIR))
+	err = createAllDir(path.Join(ROOT_STORE, IMAGE_DIR))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = createAllDir(path.Join(ROOT_STORE, IMAGE_XS_DIR))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = createAllDir(path.Join(ROOT_STORE, VIDEO_DIR))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	startServer()
 }
@@ -104,7 +133,11 @@ func startServer() {
 	router.GET("/videos", filesHandler(VIDEO_DIR))
 
 	router.POST("/upload", func(c *gin.Context) {
-		form, _ := c.MultipartForm()
+		form, err := c.MultipartForm()
+		if err != nil {
+			c.String(http.StatusBadRequest, err.Error())
+		}
+
 		files := form.File["files"]
 
 		// check file type
@@ -116,22 +149,34 @@ func startServer() {
 			}
 		}
 
-		result := make([]string, 0)
+		result := newUploadResult()
 		for _, file := range files {
 			fullPath, fileName := createFilePath(file.Filename, file)
-			createAllDir(filepath.Dir(fullPath))
-			c.SaveUploadedFile(file, fullPath)
+			err := createAllDir(filepath.Dir(fullPath))
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
+				continue
+			}
+
+			err = c.SaveUploadedFile(file, fullPath)
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
+				continue
+			}
+
 			if contains(IMAGE_EXT, filepath.Ext(fileName)) {
 				err := compressFile(file, fileName)
 				if err != nil {
-					fmt.Println(err)
+					result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
+					os.Remove(fullPath)
+					continue
 				}
 			}
-			result = append(result, fileName)
+
+			result.SuccessResults = append(result.SuccessResults, fileName)
 		}
-		sort.Slice(result, func(i, j int) bool {
-			return result[i][0:FILENAME_LEN] > result[j][0:FILENAME_LEN]
-		})
+		result.sort()
+
 		c.JSON(http.StatusOK, result)
 	})
 
@@ -218,14 +263,12 @@ func filesHandler(dirType DirType) func(*gin.Context) {
 	}
 }
 
-func createAllDir(dirs string) {
+func createAllDir(dirs string) (err error) {
 	mask := syscall.Umask(0)
 	defer syscall.Umask(mask)
 
-	err := os.MkdirAll(dirs, os.ModePerm)
-	if err != nil {
-		fmt.Println(err)
-	}
+	err = os.MkdirAll(dirs, os.ModePerm)
+	return
 }
 
 func createFilePath(srcFileName string, file *multipart.FileHeader) (fullPath string, fileName string) {
@@ -385,7 +428,11 @@ func compressFile(file *multipart.FileHeader, filename string) (err error) {
 	month := filename[4:6]
 	day := filename[6:8]
 	distFilepath := filepath.Join(ROOT_STORE, IMAGE_XS_DIR, year, month, day)
-	createAllDir(distFilepath)
+
+	err = createAllDir(distFilepath)
+	if err != nil {
+		return err
+	}
 
 	distFile := filepath.Join(distFilepath, filename)
 	f, err := os.Create(distFile)
