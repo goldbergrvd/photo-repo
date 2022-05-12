@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"photo-repo/album"
 	"photo-repo/middleware"
 
 	"github.com/disintegration/imaging"
@@ -27,6 +28,10 @@ import (
 	"github.com/rwcarlsen/goexif/exif"
 )
 
+const VERSION = "1.0.0"
+
+var PRINT_VERSION bool
+
 type DirType = string
 
 var ROOT_DIR string
@@ -34,6 +39,7 @@ var ROOT_STORE string
 var IMAGE_DIR DirType = "images"
 var IMAGE_XS_DIR DirType = "images-xs"
 var VIDEO_DIR DirType = "videos"
+var ALBUM_DIR DirType = "albums"
 var IMAGE_EXT = []string{".jpg", ".jpeg", ".png"}
 var VIDEO_EXT = []string{".mp4", ".mov"}
 
@@ -60,6 +66,7 @@ func newUploadResult() uploadResult {
 }
 
 func init() {
+	flag.BoolVar(&PRINT_VERSION, "version", false, "Print build version")
 	flag.StringVar(&ROOT_DIR, "r", ".", "Server root directory")
 	flag.StringVar(&ROOT_STORE, "d", "./files", "Files stored root directory")
 	flag.Parse()
@@ -72,6 +79,11 @@ func init() {
 }
 
 func main() {
+	if PRINT_VERSION {
+		fmt.Println(VERSION)
+		return
+	}
+
 	err := os.Chdir(ROOT_DIR)
 	if err != nil {
 		fmt.Println(err)
@@ -95,6 +107,13 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+
+	err = createAllDir(path.Join(ROOT_STORE, ALBUM_DIR))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	album.SetRootDir(path.Join(ROOT_STORE, ALBUM_DIR))
 
 	startServer()
 }
@@ -126,6 +145,10 @@ func startServer() {
 		c.File("manifest.json")
 	})
 
+	router.GET("/version", func(c *gin.Context) {
+		c.String(http.StatusOK, VERSION)
+	})
+
 	router.GET("/image/:name", fileHandler(IMAGE_DIR))
 	router.GET("/image-xs/:name", fileHandler(IMAGE_XS_DIR))
 	router.GET("/video/:name", fileHandler(VIDEO_DIR))
@@ -133,79 +156,44 @@ func startServer() {
 	router.GET("/images", filesHandler(IMAGE_DIR))
 	router.GET("/videos", filesHandler(VIDEO_DIR))
 
-	router.POST("/upload", func(c *gin.Context) {
-		form, err := c.MultipartForm()
+	router.POST("/upload", uploadHandler)
+	router.DELETE("/delete", deleteHandler)
+
+	router.GET("/albums", func(c *gin.Context) {
+		result, _ := album.GetAlbums()
+		c.JSON(http.StatusOK, result)
+	})
+
+	router.POST("/album", func(c *gin.Context) {
+		result := album.Album{}
+		err := c.ShouldBindJSON(&result)
 		if err != nil {
 			c.String(http.StatusBadRequest, err.Error())
+			return
 		}
 
-		files := form.File["files"]
+		fmt.Println(result)
 
-		// check file type
-		for _, file := range files {
-			err := checkFile(file.Filename)
-			if err != nil {
-				c.String(http.StatusBadRequest, err.Error())
-				return
-			}
+		result, err = album.CreateAlbum(result)
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			return
 		}
-
-		result := newUploadResult()
-		for _, file := range files {
-			fullPath, fileName := createFilePath(file.Filename, file)
-			err := createAllDir(filepath.Dir(fullPath))
-			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
-				continue
-			}
-
-			err = c.SaveUploadedFile(file, fullPath)
-			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
-				continue
-			}
-
-			if contains(IMAGE_EXT, filepath.Ext(fileName)) {
-				err := compressFile(file, fileName)
-				if err != nil {
-					result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
-					os.Remove(fullPath)
-					continue
-				}
-			}
-
-			result.SuccessResults = append(result.SuccessResults, fileName)
-		}
-		result.sort()
-
 		c.JSON(http.StatusOK, result)
 	})
 
-	router.DELETE("/delete", func(c *gin.Context) {
-		var names []string = make([]string, 0)
-		var result map[string]bool = make(map[string]bool)
-
-		if err := c.ShouldBind(&names); err != nil {
+	router.DELETE("/album/:id", func(c *gin.Context) {
+		albumId := c.Param("id")
+		err := album.DeleteAlbum(albumId)
+		if err != nil {
 			c.String(http.StatusBadRequest, err.Error())
+			return
 		}
-
-		for _, name := range names {
-			filePath, xsFilePath, err := getFilePath(name)
-
-			if err == nil {
-				err = os.Remove(filePath)
-			}
-
-			var errXs error
-			if xsFilePath != "" {
-				errXs = os.Remove(xsFilePath)
-			}
-
-			result[name] = err == nil && errXs == nil
-		}
-
-		c.JSON(http.StatusOK, result)
+		c.String(http.StatusOK, albumId)
 	})
+
+	router.PUT("/album/addphoto/:id", albumPhotoHandler("add"))
+	router.PUT("/album/deletephoto/:id", albumPhotoHandler("delete"))
 
 	router.Run()
 }
@@ -266,6 +254,106 @@ func filesHandler(dirType DirType) func(*gin.Context) {
 		})
 
 		c.JSON(http.StatusOK, result)
+	}
+}
+
+func uploadHandler(c *gin.Context) {
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.String(http.StatusBadRequest, err.Error())
+	}
+
+	files := form.File["files"]
+
+	// check file type
+	for _, file := range files {
+		err := checkFile(file.Filename)
+		if err != nil {
+			c.String(http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	result := newUploadResult()
+	for _, file := range files {
+		fullPath, fileName := createFilePath(file.Filename, file)
+		err := createAllDir(filepath.Dir(fullPath))
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
+			continue
+		}
+
+		err = c.SaveUploadedFile(file, fullPath)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
+			continue
+		}
+
+		if contains(IMAGE_EXT, filepath.Ext(fileName)) {
+			err := compressFile(file, fileName)
+			if err != nil {
+				result.Errors = append(result.Errors, fmt.Sprintf("[%s] fail: %s", file.Filename, err.Error()))
+				os.Remove(fullPath)
+				continue
+			}
+		}
+
+		result.SuccessResults = append(result.SuccessResults, fileName)
+	}
+	result.sort()
+
+	c.JSON(http.StatusOK, result)
+}
+
+func deleteHandler(c *gin.Context) {
+	var names []string = make([]string, 0)
+	var result map[string]bool = make(map[string]bool)
+
+	if err := c.ShouldBind(&names); err != nil {
+		c.String(http.StatusBadRequest, err.Error())
+	}
+
+	for _, name := range names {
+		filePath, xsFilePath, err := getFilePath(name)
+
+		if err == nil {
+			err = os.Remove(filePath)
+		}
+
+		var errXs error
+		if xsFilePath != "" {
+			errXs = os.Remove(xsFilePath)
+		}
+
+		result[name] = err == nil && errXs == nil
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func albumPhotoHandler(m string) func(*gin.Context) {
+	return func(c *gin.Context) {
+		albumId := c.Param("id")
+		var names = make([]string, 0)
+		if err := c.ShouldBind(&names); err != nil {
+			c.String(http.StatusBadRequest, err.Error())
+			return
+		}
+
+		var newAlbum *album.Album
+		var err error
+		if m == "add" {
+			newAlbum, err = album.AddPhoto(albumId, names)
+		}
+		if m == "delete" {
+			newAlbum, err = album.DeletePhoto(albumId, names)
+		}
+		if err != nil {
+			c.String(http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		c.JSON(http.StatusOK, newAlbum)
 	}
 }
 
