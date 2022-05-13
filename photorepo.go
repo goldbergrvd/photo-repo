@@ -172,8 +172,6 @@ func startServer() {
 			return
 		}
 
-		fmt.Println(result)
-
 		result, err = album.CreateAlbum(result)
 		if err != nil {
 			c.String(http.StatusInternalServerError, err.Error())
