@@ -113,6 +113,9 @@ func GetAlbums() (result []Album, err error) {
 			result = append(result, *album)
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Id > result[j].Id
+	})
 	return
 }
 
